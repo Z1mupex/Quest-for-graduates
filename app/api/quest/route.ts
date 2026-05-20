@@ -17,8 +17,20 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
   }
-  const state = await readQuestState();
-  return NextResponse.json(state);
+  try {
+    const state = await readQuestState();
+    return NextResponse.json(state);
+  } catch (err) {
+    console.error("[api/quest GET]", err);
+    const message = err instanceof Error ? err.message : "Ошибка хранилища";
+    return NextResponse.json(
+      {
+        error: message,
+        hint: "На Vercel подключите Storage → KV и Blob, затем Redeploy.",
+      },
+      { status: 500 },
+    );
+  }
 }
 
 type PatchBody = {

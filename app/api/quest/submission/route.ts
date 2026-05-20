@@ -62,16 +62,19 @@ export async function POST(request: Request) {
 
   try {
     await saveSubmission(teamId, submission);
-    const state = await mutateQuestState((s) => ({
-      ...s,
-      teams: {
-        ...s.teams,
-        [teamId]: {
-          ...team,
-          approvalPendingStep: step,
+    const state = await mutateQuestState((s) => {
+      const teamNow = s.teams[teamId] ?? team;
+      return {
+        ...s,
+        teams: {
+          ...s.teams,
+          [teamId]: {
+            ...teamNow,
+            approvalPendingStep: step,
+          },
         },
-      },
-    }));
+      };
+    });
     return NextResponse.json(state);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Ошибка сохранения";
