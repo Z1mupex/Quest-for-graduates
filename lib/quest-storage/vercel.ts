@@ -1,4 +1,4 @@
-import { del, get, put } from "@vercel/blob";
+import { del, get, head, put } from "@vercel/blob";
 import type { ApprovalSubmission, QuestState } from "@/lib/quest-types";
 import type { QuestTeamsSnapshot } from "@/lib/quest-types";
 import type { TimerState } from "@/lib/quest-types";
@@ -15,32 +15,23 @@ import type { QuestStorage } from "@/lib/quest-storage/types";
 
 const submissionPath = (teamId: string) => `submissions/${teamId}.json`;
 
-const blobAccess = { access: "private" as const };
-
-function assertBlob() {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    throw new Error(
-      "Vercel Blob не настроен. Storage → Blob в проекте Vercel, затем Redeploy.",
-    );
-  }
-}
-
 async function readJsonBlob<T>(pathname: string): Promise<T | null> {
-  try {
-    const result = await get(pathname, {
-      ...blobAccess,
-      useCache: false,
-    });
-    if (result?.statusCode === 200 && result.stream) {
-      const text = await new Response(result.stream).text();
-      return JSON.parse(text) as T;
+  for (const access of ["private", "public"] as const) {
+    try {
+      const result = await get(pathname, {
+        access,
+        useCache: false,
+      });
+      if (result?.statusCode === 200 && result.stream) {
+        const text = await new Response(result.stream).text();
+        return JSON.parse(text) as T;
+      }
+    } catch {
+      // пробуем другой режим доступа
     }
-  } catch {
-    // пробуем старые public-файлы
   }
 
   try {
-    const { head } = await import("@vercel/blob");
     const meta = await head(pathname);
     const res = await fetch(`${meta.url}?v=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return null;
@@ -52,7 +43,7 @@ async function readJsonBlob<T>(pathname: string): Promise<T | null> {
 
 async function writeJsonBlob(pathname: string, data: unknown): Promise<void> {
   await put(pathname, JSON.stringify(data), {
-    ...blobAccess,
+    access: "private",
     contentType: "application/json",
     addRandomSuffix: false,
     allowOverwrite: true,
@@ -67,17 +58,27 @@ async function deleteBlob(pathname: string): Promise<void> {
   }
 }
 
+async function migrateLegacyIfNeeded(): Promise<QuestTeamsSnapshot | null> {
+  const legacy = await readJsonBlob<QuestState>(LEGACY_STATE_BLOB_PATH);
+  if (!legacy) return null;
+
+  const { teams: snap, timer } = legacyToSnapshot(legacy);
+  await writeJsonBlob(TEAMS_BLOB_PATH, snap);
+  await writeJsonBlob(TIMER_BLOB_PATH, timer);
+  await deleteBlob(LEGACY_STATE_BLOB_PATH);
+  return snap;
+}
+
 async function readTeamsSnapshot(): Promise<QuestTeamsSnapshot> {
   const teams = await readJsonBlob<QuestTeamsSnapshot>(TEAMS_BLOB_PATH);
-  if (teams) return teams;
-
-  const legacy = await readJsonBlob<QuestState>(LEGACY_STATE_BLOB_PATH);
-  if (legacy) {
-    const { teams: snap, timer } = legacyToSnapshot(legacy);
-    await writeJsonBlob(TEAMS_BLOB_PATH, snap);
-    await writeJsonBlob(TIMER_BLOB_PATH, timer);
-    return snap;
+  if (teams?.teams && Object.keys(teams.teams).length > 0) {
+    return teams;
   }
+
+  const migrated = await migrateLegacyIfNeeded();
+  if (migrated) return migrated;
+
+  if (teams) return teams;
 
   const initial = initialTeamsSnapshot();
   await writeJsonBlob(TEAMS_BLOB_PATH, initial);
@@ -93,6 +94,7 @@ async function readTimer(): Promise<TimerState> {
     const { teams: snap, timer: t } = legacyToSnapshot(legacy);
     await writeJsonBlob(TEAMS_BLOB_PATH, snap);
     await writeJsonBlob(TIMER_BLOB_PATH, t);
+    await deleteBlob(LEGACY_STATE_BLOB_PATH);
     return t;
   }
 
@@ -103,7 +105,11 @@ async function readTimer(): Promise<TimerState> {
 
 export const vercelQuestStorage: QuestStorage = {
   async readState() {
-    assertBlob();
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error(
+        "Vercel Blob не настроен. Storage → Blob в проекте Vercel, затем Redeploy.",
+      );
+    }
     const [teamsSnap, timer] = await Promise.all([
       readTeamsSnapshot(),
       readTimer(),
@@ -112,17 +118,23 @@ export const vercelQuestStorage: QuestStorage = {
   },
 
   async writeTeams(snapshot) {
-    assertBlob();
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error("Vercel Blob не настроен.");
+    }
     await writeJsonBlob(TEAMS_BLOB_PATH, snapshot);
   },
 
   async writeTimer(timer) {
-    assertBlob();
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error("Vercel Blob не настроен.");
+    }
     await writeJsonBlob(TIMER_BLOB_PATH, timer);
   },
 
   async writeState(state) {
-    assertBlob();
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error("Vercel Blob не настроен.");
+    }
     await Promise.all([
       writeJsonBlob(TEAMS_BLOB_PATH, {
         teams: state.teams,
@@ -133,17 +145,23 @@ export const vercelQuestStorage: QuestStorage = {
   },
 
   async saveSubmission(teamId, submission) {
-    assertBlob();
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error("Vercel Blob не настроен.");
+    }
     await writeJsonBlob(submissionPath(teamId), submission);
   },
 
   async loadSubmission(teamId) {
-    assertBlob();
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error("Vercel Blob не настроен.");
+    }
     return readJsonBlob<ApprovalSubmission>(submissionPath(teamId));
   },
 
   async deleteSubmission(teamId) {
-    assertBlob();
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error("Vercel Blob не настроен.");
+    }
     await deleteBlob(submissionPath(teamId));
   },
 };

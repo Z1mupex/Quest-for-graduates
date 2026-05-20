@@ -71,6 +71,7 @@ export async function mutateQuestTimer(
 
 export async function mutateQuestState(
   mutator: (state: QuestState) => QuestState,
+  options?: { forceTeamsRevision?: boolean },
 ): Promise<QuestState> {
   const storage = getQuestStorage();
   const current = await storage.readState();
@@ -81,20 +82,21 @@ export async function mutateQuestState(
   const timerChanged =
     JSON.stringify(mutated.timer) !== JSON.stringify(current.timer);
 
-  if (!teamsChanged && !timerChanged) {
+  if (!teamsChanged && !timerChanged && !options?.forceTeamsRevision) {
     return current;
   }
 
-  const nextRevision = teamsChanged
-    ? (current.revision ?? 0) + 1
-    : (current.revision ?? 0);
+  const nextRevision =
+    teamsChanged || options?.forceTeamsRevision
+      ? (current.revision ?? 0) + 1
+      : (current.revision ?? 0);
 
   const result: QuestState = {
     ...mutated,
     revision: nextRevision,
   };
 
-  if (teamsChanged) {
+  if (teamsChanged || options?.forceTeamsRevision) {
     await storage.writeTeams(teamsSnapshotFromState(result));
   }
   if (timerChanged) {

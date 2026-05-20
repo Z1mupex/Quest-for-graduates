@@ -27,18 +27,11 @@ export const useQuestStore = create<QuestStore>()((set, get) => ({
   },
   hydrated: false,
   hydrateFromServer: (state) => {
-    set((current) => {
-      const incomingRevision = state.revision ?? 0;
-      const localRevision = current.revision ?? 0;
-      if (current.hydrated && incomingRevision < localRevision) {
-        return current;
-      }
-      return {
-        teams: state.teams,
-        timer: resolveTimer(state.timer),
-        revision: Math.max(incomingRevision, localRevision),
-        hydrated: true,
-      };
+    set({
+      teams: state.teams,
+      timer: resolveTimer(state.timer),
+      revision: state.revision ?? 0,
+      hydrated: true,
     });
   },
   tickTimerLocal: () => {

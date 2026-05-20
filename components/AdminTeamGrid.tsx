@@ -14,7 +14,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { AdminApprovalDialog } from "@/components/AdminApprovalDialog";
 import { USERS } from "@/lib/data";
-import { fetchSubmission, patchQuest } from "@/lib/quest-api";
+import { fetchQuestState, fetchSubmission, patchQuest } from "@/lib/quest-api";
 import { TOTAL_QUEST_STEPS } from "@/lib/quest-config";
 import type { ApprovalSubmission } from "@/lib/quest-types";
 import { useQuestStore } from "@/lib/store";
@@ -63,6 +63,12 @@ export function AdminTeamGrid() {
     setBusy(true);
     try {
       await patchQuest(body);
+      if (
+        body.action === "resetTeam" ||
+        body.action === "resetAllTeams"
+      ) {
+        await fetchQuestState();
+      }
     } finally {
       setBusy(false);
     }

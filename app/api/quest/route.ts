@@ -107,6 +107,9 @@ export async function PATCH(request: Request) {
       return NextResponse.json(state);
     }
 
+    const forceTeamsRevision =
+      body.action === "resetTeam" || body.action === "resetAllTeams";
+
     const state = await mutateQuestState((current) => {
       switch (body.action) {
         case "completeStep": {
@@ -166,7 +169,7 @@ export async function PATCH(request: Request) {
         default:
           return current;
       }
-    });
+    }, { forceTeamsRevision });
 
     if (
       body.action === "completeStep" &&
