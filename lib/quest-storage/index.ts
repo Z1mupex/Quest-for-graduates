@@ -6,20 +6,18 @@ function isVercel(): boolean {
   return Boolean(process.env.VERCEL);
 }
 
-function hasKvEnv(): boolean {
-  return Boolean(
-    process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN,
-  );
+function hasBlobEnv(): boolean {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
 export function getQuestStorage(): QuestStorage {
-  if (isVercel() || hasKvEnv()) {
+  if (isVercel() || hasBlobEnv()) {
     return vercelQuestStorage;
   }
   return fileQuestStorage;
 }
 
 export function getStorageBackendName(): string {
-  if (isVercel() || hasKvEnv()) return "vercel-kv";
+  if (isVercel() || hasBlobEnv()) return "vercel-blob";
   return "file";
 }

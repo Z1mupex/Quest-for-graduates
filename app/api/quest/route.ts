@@ -26,7 +26,7 @@ export async function GET() {
     return NextResponse.json(
       {
         error: message,
-        hint: "На Vercel подключите Storage → KV и Blob, затем Redeploy.",
+        hint: "На Vercel подключите Storage → Blob, затем Redeploy.",
       },
       { status: 500 },
     );
