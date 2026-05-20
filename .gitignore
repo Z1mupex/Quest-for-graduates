@@ -41,6 +41,8 @@ next-env.d.ts
 
 # quest runtime data (submissions with photos)
 /data/quest-state.json
+/data/quest-teams.json
+/data/quest-timer.json
 /data/submissions/
 
 node_modules/

@@ -4,21 +4,37 @@ import { TOTAL_QUEST_STEPS } from "@/lib/quest-config";
 import {
   completeTeamStep,
   createInitialQuestState,
+  didCompleteStep,
   mutateQuestState,
+  mutateQuestTimer,
   readQuestState,
   resolveTimer,
 } from "@/lib/server-quest-store";
 import type { QuestState, TimerState } from "@/lib/quest-types";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET() {
   const session = await getServerSession();
   if (!session) {
     return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
   }
-  const state = await readQuestState();
-  return NextResponse.json(state);
+  try {
+    const state = await readQuestState();
+    return NextResponse.json(state);
+  } catch (err) {
+    console.error("[api/quest GET]", err);
+    const message = err instanceof Error ? err.message : "Ошибка хранилища";
+    return NextResponse.json(
+      {
+        error: message,
+        hint: "На Vercel подключите Storage → Blob, затем Redeploy.",
+      },
+      { status: 500 },
+    );
+  }
 }
 
 type PatchBody = {
@@ -56,6 +72,46 @@ export async function PATCH(request: Request) {
   const isAdmin = session.role === "admin";
 
   try {
+    const before =
+      body.action === "completeStep" ? await readQuestState() : null;
+
+    if (
+      body.action === "startTimer" ||
+      body.action === "pauseTimer" ||
+      body.action === "resetTimer"
+    ) {
+      if (!isAdmin) {
+        return NextResponse.json({ error: "Доступ запрещён" }, { status: 403 });
+      }
+
+      const state = await mutateQuestTimer((timer) => {
+        switch (body.action) {
+          case "startTimer": {
+            const resolved = resolveTimer(timer);
+            if (resolved.status === "finished" || resolved.remainingMs <= 0) {
+              return { ...resolved, remainingMs: 0, status: "finished" };
+            }
+            return {
+              ...resolved,
+              status: "running",
+              startedAt: Date.now(),
+            };
+          }
+          case "pauseTimer":
+            return pauseTimer(resolveTimer(timer));
+          case "resetTimer":
+            return createInitialQuestState().timer;
+          default:
+            return timer;
+        }
+      });
+
+      return NextResponse.json(state);
+    }
+
+    const forceTeamsRevision =
+      body.action === "resetTeam" || body.action === "resetAllTeams";
+
     const state = await mutateQuestState((current) => {
       switch (body.action) {
         case "completeStep": {
@@ -112,62 +168,26 @@ export async function PATCH(request: Request) {
             },
           };
         }
-        case "startTimer": {
-          if (!isAdmin) return current;
-          const timer = resolveTimer(current.timer);
-          if (timer.status === "finished" || timer.remainingMs <= 0) {
-            return {
-              ...current,
-              timer: { ...timer, remainingMs: 0, status: "finished" },
-            };
-          }
-          return {
-            ...current,
-            timer: {
-              ...timer,
-              status: "running",
-              startedAt: Date.now(),
-            },
-          };
-        }
-        case "pauseTimer": {
-          if (!isAdmin) return current;
-          return { ...current, timer: pauseTimer(resolveTimer(current.timer)) };
-        }
-        case "resetTimer": {
-          if (!isAdmin) return current;
-          const initial = createInitialQuestState().timer;
-          return { ...current, timer: initial };
-        }
-        case "tickTimer": {
-          if (!isAdmin) return current;
-          const timer = resolveTimer(current.timer);
-          if (timer.status !== "running") return current;
-          const remainingMs = Math.max(0, timer.remainingMs - 1000);
-          if (remainingMs <= 0) {
-            return {
-              ...current,
-              timer: {
-                ...timer,
-                remainingMs: 0,
-                status: "finished",
-                startedAt: undefined,
-              },
-            };
-          }
-          return {
-            ...current,
-            timer: {
-              ...timer,
-              remainingMs,
-              startedAt: Date.now(),
-            },
-          };
-        }
         default:
           return current;
       }
-    });
+    }, { forceTeamsRevision });
+
+    if (
+      body.action === "completeStep" &&
+      body.step != null &&
+      session.role === "team" &&
+      before &&
+      !didCompleteStep(before, state, session.userId, body.step)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Не удалось засчитать шаг. Обновите страницу и попробуйте снова.",
+        },
+        { status: 409 },
+      );
+    }
 
     if (body.action === "approvePending" && body.teamId) {
       const { deleteSubmission } = await import("@/lib/server-quest-store");

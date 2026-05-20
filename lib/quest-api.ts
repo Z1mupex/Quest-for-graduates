@@ -11,9 +11,15 @@ export class QuestApiError extends Error {
 }
 
 async function parseResponse(res: Response): Promise<QuestState> {
-  const data = (await res.json()) as QuestState & { error?: string };
+  const data = (await res.json()) as QuestState & {
+    error?: string;
+    hint?: string;
+  };
   if (!res.ok) {
-    throw new QuestApiError(data.error ?? "Ошибка сервера");
+    const msg = data.hint
+      ? `${data.error ?? "Ошибка сервера"}. ${data.hint}`
+      : (data.error ?? "Ошибка сервера");
+    throw new QuestApiError(msg);
   }
   useQuestStore.getState().hydrateFromServer(data);
   return data;

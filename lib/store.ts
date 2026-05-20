@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { resolveTimer } from "@/lib/quest-state-core";
 import type { QuestState, TeamState, TimerState } from "@/lib/quest-types";
 
 export type {
@@ -26,10 +27,22 @@ export const useQuestStore = create<QuestStore>()((set, get) => ({
   },
   hydrated: false,
   hydrateFromServer: (state) => {
-    set({
-      teams: state.teams,
-      timer: state.timer,
-      hydrated: true,
+    set((current) => {
+      const incomingRevision = state.revision ?? 0;
+      const currentRevision = current.revision ?? 0;
+      const shouldUseTeams = !current.hydrated || incomingRevision >= currentRevision;
+
+      const incomingTimerUpdatedAt = state.timer.updatedAt ?? 0;
+      const currentTimerUpdatedAt = current.timer.updatedAt ?? 0;
+      const shouldUseTimer =
+        !current.hydrated || incomingTimerUpdatedAt >= currentTimerUpdatedAt;
+
+      return {
+        teams: shouldUseTeams ? state.teams : current.teams,
+        timer: shouldUseTimer ? resolveTimer(state.timer) : current.timer,
+        revision: shouldUseTeams ? incomingRevision : currentRevision,
+        hydrated: true,
+      };
     });
   },
   tickTimerLocal: () => {

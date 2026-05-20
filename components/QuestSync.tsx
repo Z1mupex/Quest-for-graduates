@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { fetchQuestState } from "@/lib/quest-api";
+import { useEffect, useRef, useState } from "react";
+import { fetchQuestState, QuestApiError } from "@/lib/quest-api";
 import { useQuestStore } from "@/lib/store";
 
-const POLL_MS = 3000;
+const POLL_MS = 2000;
 
 type QuestSyncProps = {
   enabled: boolean;
@@ -12,6 +12,7 @@ type QuestSyncProps = {
 
 export function QuestSync({ enabled }: QuestSyncProps) {
   const hydrated = useQuestStore((s) => s.hydrated);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -22,8 +23,15 @@ export function QuestSync({ enabled }: QuestSyncProps) {
     async function sync() {
       try {
         await fetchQuestState();
-      } catch {
-        // повторим на следующем интервале
+        if (!cancelled) setSyncError(null);
+      } catch (e) {
+        if (!cancelled) {
+          setSyncError(
+            e instanceof QuestApiError
+              ? e.message
+              : "Не удалось подключиться к серверу",
+          );
+        }
       }
     }
 
@@ -43,11 +51,28 @@ export function QuestSync({ enabled }: QuestSyncProps) {
     };
   }, [enabled]);
 
-  if (!enabled || hydrated) return null;
+  if (!enabled) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-      <p className="text-muted-foreground">Синхронизация с сервером…</p>
-    </div>
-  );
+  if (!hydrated) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+        <div className="max-w-md space-y-2 px-6 text-center">
+          <p className="text-muted-foreground">Синхронизация с сервером…</p>
+          {syncError ? (
+            <p className="text-sm text-destructive">{syncError}</p>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (syncError) {
+    return (
+      <div className="border-b border-destructive/40 bg-destructive/10 px-4 py-2 text-center text-sm text-destructive">
+        {syncError}
+      </div>
+    );
+  }
+
+  return null;
 }

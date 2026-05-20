@@ -10,6 +10,8 @@ import {
 import type { ApprovalSubmission } from "@/lib/quest-types";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export const maxDuration = 60;
 
@@ -62,16 +64,19 @@ export async function POST(request: Request) {
 
   try {
     await saveSubmission(teamId, submission);
-    const state = await mutateQuestState((s) => ({
-      ...s,
-      teams: {
-        ...s.teams,
-        [teamId]: {
-          ...team,
-          approvalPendingStep: step,
+    const state = await mutateQuestState((s) => {
+      const teamNow = s.teams[teamId] ?? team;
+      return {
+        ...s,
+        teams: {
+          ...s.teams,
+          [teamId]: {
+            ...teamNow,
+            approvalPendingStep: step,
+          },
         },
-      },
-    }));
+      };
+    });
     return NextResponse.json(state);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Ошибка сохранения";
