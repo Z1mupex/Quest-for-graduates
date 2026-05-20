@@ -1,4 +1,4 @@
-import { del, head, put } from "@vercel/blob";
+import { del, get, head, put } from "@vercel/blob";
 import type { ApprovalSubmission, QuestState } from "@/lib/quest-types";
 import type { QuestTeamsSnapshot } from "@/lib/quest-types";
 import type { TimerState } from "@/lib/quest-types";
@@ -16,6 +16,19 @@ import { StaleQuestWriteError, type QuestStorage } from "@/lib/quest-storage/typ
 const submissionPath = (teamId: string) => `submissions/${teamId}.json`;
 
 async function readJsonBlob<T>(pathname: string): Promise<T | null> {
+  try {
+    const result = await get(pathname, {
+      access: "public",
+      useCache: false,
+    });
+    if (result?.statusCode === 200 && result.stream) {
+      const text = await new Response(result.stream).text();
+      return JSON.parse(text) as T;
+    }
+  } catch {
+    // Fall back to the blob URL below.
+  }
+
   try {
     const meta = await head(pathname);
     const res = await fetch(`${meta.url}?v=${Date.now()}`, {

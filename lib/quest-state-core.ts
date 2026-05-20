@@ -32,7 +32,8 @@ export function resolveTimer(timer: TimerState): TimerState {
   if (timer.status !== "running" || timer.startedAt == null) {
     return timer;
   }
-  const elapsed = Date.now() - timer.startedAt;
+  const now = Date.now();
+  const elapsed = now - timer.startedAt;
   const remainingMs = Math.max(0, timer.remainingMs - elapsed);
   if (remainingMs <= 0) {
     return {
@@ -42,7 +43,7 @@ export function resolveTimer(timer: TimerState): TimerState {
       startedAt: undefined,
     };
   }
-  return { ...timer, remainingMs };
+  return { ...timer, remainingMs, startedAt: now };
 }
 
 export function completeTeamStep(

@@ -23,6 +23,7 @@ export type TimerState = {
   remainingMs: number;
   status: "idle" | "running" | "paused" | "finished";
   startedAt?: number;
+  updatedAt?: number;
 };
 
 export type QuestState = {

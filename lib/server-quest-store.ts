@@ -62,7 +62,7 @@ export async function mutateQuestTimer(
 ): Promise<QuestState> {
   const storage = getQuestStorage();
   const current = await storage.readState();
-  const nextTimer = mutator(current.timer);
+  const nextTimer = { ...mutator(current.timer), updatedAt: Date.now() };
   await storage.writeTimer(nextTimer);
   return {
     ...current,
