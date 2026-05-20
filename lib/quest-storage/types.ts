@@ -14,3 +14,10 @@ export type QuestStorage = {
   loadSubmission: (teamId: string) => Promise<ApprovalSubmission | null>;
   deleteSubmission: (teamId: string) => Promise<void>;
 };
+
+export class StaleQuestWriteError extends Error {
+  constructor(message = "Quest state changed while saving") {
+    super(message);
+    this.name = "StaleQuestWriteError";
+  }
+}
