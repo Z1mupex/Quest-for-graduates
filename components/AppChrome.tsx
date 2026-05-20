@@ -20,7 +20,7 @@ export function AppChrome({ session, children }: AppChromeProps) {
   return (
     <>
       <QuestSync enabled={session != null} />
-      <TimerTicker isAdmin={session?.role === "admin"} />
+      <TimerTicker />
       <GlobalTimerOverlay session={session} />
       <Header session={session} displayName={displayName} />
       <main className="flex-1">{children}</main>

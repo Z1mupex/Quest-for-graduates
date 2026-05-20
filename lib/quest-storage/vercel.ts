@@ -1,4 +1,4 @@
-import { del, head, put } from "@vercel/blob";
+import { del, get, put } from "@vercel/blob";
 import type { ApprovalSubmission, QuestState } from "@/lib/quest-types";
 import type { QuestTeamsSnapshot } from "@/lib/quest-types";
 import type { TimerState } from "@/lib/quest-types";
@@ -7,7 +7,6 @@ import {
   initialTimer,
   legacyToSnapshot,
   mergeQuestState,
-  teamsSnapshotFromState,
   LEGACY_STATE_BLOB_PATH,
   TEAMS_BLOB_PATH,
   TIMER_BLOB_PATH,
@@ -15,6 +14,8 @@ import {
 import type { QuestStorage } from "@/lib/quest-storage/types";
 
 const submissionPath = (teamId: string) => `submissions/${teamId}.json`;
+
+const blobAccess = { access: "private" as const };
 
 function assertBlob() {
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -26,13 +27,22 @@ function assertBlob() {
 
 async function readJsonBlob<T>(pathname: string): Promise<T | null> {
   try {
-    const meta = await head(pathname);
-    const cacheBust = meta.uploadedAt
-      ? new Date(meta.uploadedAt).getTime()
-      : Date.now();
-    const res = await fetch(`${meta.url}?v=${cacheBust}`, {
-      cache: "no-store",
+    const result = await get(pathname, {
+      ...blobAccess,
+      useCache: false,
     });
+    if (result?.statusCode === 200 && result.stream) {
+      const text = await new Response(result.stream).text();
+      return JSON.parse(text) as T;
+    }
+  } catch {
+    // пробуем старые public-файлы
+  }
+
+  try {
+    const { head } = await import("@vercel/blob");
+    const meta = await head(pathname);
+    const res = await fetch(`${meta.url}?v=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -42,7 +52,7 @@ async function readJsonBlob<T>(pathname: string): Promise<T | null> {
 
 async function writeJsonBlob(pathname: string, data: unknown): Promise<void> {
   await put(pathname, JSON.stringify(data), {
-    access: "public",
+    ...blobAccess,
     contentType: "application/json",
     addRandomSuffix: false,
     allowOverwrite: true,
@@ -51,8 +61,7 @@ async function writeJsonBlob(pathname: string, data: unknown): Promise<void> {
 
 async function deleteBlob(pathname: string): Promise<void> {
   try {
-    const meta = await head(pathname);
-    await del(meta.url);
+    await del(pathname);
   } catch {
     // ignore
   }
@@ -102,18 +111,25 @@ export const vercelQuestStorage: QuestStorage = {
     return mergeQuestState(teamsSnap, timer);
   },
 
-  async writeState(state) {
+  async writeTeams(snapshot) {
     assertBlob();
-    const snap = teamsSnapshotFromState(state);
-    await Promise.all([
-      writeJsonBlob(TEAMS_BLOB_PATH, snap),
-      writeJsonBlob(TIMER_BLOB_PATH, state.timer),
-    ]);
+    await writeJsonBlob(TEAMS_BLOB_PATH, snapshot);
   },
 
   async writeTimer(timer) {
     assertBlob();
     await writeJsonBlob(TIMER_BLOB_PATH, timer);
+  },
+
+  async writeState(state) {
+    assertBlob();
+    await Promise.all([
+      writeJsonBlob(TEAMS_BLOB_PATH, {
+        teams: state.teams,
+        revision: state.revision ?? 0,
+      }),
+      writeJsonBlob(TIMER_BLOB_PATH, state.timer),
+    ]);
   },
 
   async saveSubmission(teamId, submission) {

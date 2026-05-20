@@ -76,8 +76,7 @@ export async function PATCH(request: Request) {
     if (
       body.action === "startTimer" ||
       body.action === "pauseTimer" ||
-      body.action === "resetTimer" ||
-      body.action === "tickTimer"
+      body.action === "resetTimer"
     ) {
       if (!isAdmin) {
         return NextResponse.json({ error: "Доступ запрещён" }, { status: 403 });
@@ -100,24 +99,6 @@ export async function PATCH(request: Request) {
             return pauseTimer(resolveTimer(timer));
           case "resetTimer":
             return createInitialQuestState().timer;
-          case "tickTimer": {
-            const resolved = resolveTimer(timer);
-            if (resolved.status !== "running") return resolved;
-            const remainingMs = Math.max(0, resolved.remainingMs - 1000);
-            if (remainingMs <= 0) {
-              return {
-                ...resolved,
-                remainingMs: 0,
-                status: "finished",
-                startedAt: undefined,
-              };
-            }
-            return {
-              ...resolved,
-              remainingMs,
-              startedAt: Date.now(),
-            };
-          }
           default:
             return timer;
         }

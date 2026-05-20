@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { resolveTimer } from "@/lib/quest-state-core";
 import type { QuestState, TeamState, TimerState } from "@/lib/quest-types";
 
 export type {
@@ -34,7 +35,7 @@ export const useQuestStore = create<QuestStore>()((set, get) => ({
       }
       return {
         teams: state.teams,
-        timer: state.timer,
+        timer: resolveTimer(state.timer),
         revision: Math.max(incomingRevision, localRevision),
         hydrated: true,
       };

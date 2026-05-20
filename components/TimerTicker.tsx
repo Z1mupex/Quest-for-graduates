@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import { patchQuest } from "@/lib/quest-api";
 import { useQuestStore } from "@/lib/store";
 
-type TimerTickerProps = {
-  isAdmin: boolean;
-};
-
-export function TimerTicker({ isAdmin }: TimerTickerProps) {
+/**
+ * Локальный отсчёт в UI. На сервер пишем только старт/пауза/сброс —
+ * иначе Blob перезаписывался каждую секунду и затирал прогресс команд.
+ */
+export function TimerTicker() {
   const tickTimerLocal = useQuestStore((s) => s.tickTimerLocal);
   const status = useQuestStore((s) => s.timer.status);
 
@@ -16,12 +15,9 @@ export function TimerTicker({ isAdmin }: TimerTickerProps) {
     if (status !== "running") return;
     const id = window.setInterval(() => {
       tickTimerLocal();
-      if (isAdmin) {
-        void patchQuest({ action: "tickTimer" }).catch(() => {});
-      }
     }, 1000);
     return () => window.clearInterval(id);
-  }, [status, tickTimerLocal, isAdmin]);
+  }, [status, tickTimerLocal]);
 
   return null;
 }

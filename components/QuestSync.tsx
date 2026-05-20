@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchQuestState, QuestApiError } from "@/lib/quest-api";
 import { useQuestStore } from "@/lib/store";
 
-const POLL_MS = 3000;
+const POLL_MS = 2000;
 
 type QuestSyncProps = {
   enabled: boolean;

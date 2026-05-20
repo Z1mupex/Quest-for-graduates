@@ -88,6 +88,11 @@ export const fileQuestStorage: QuestStorage = {
     }
   },
 
+  async writeTeams(snapshot) {
+    await ensureDirs();
+    await fs.writeFile(TEAMS_PATH, JSON.stringify(snapshot, null, 2), "utf8");
+  },
+
   async writeState(state) {
     await ensureDirs();
     const snap = teamsSnapshotFromState(state);
