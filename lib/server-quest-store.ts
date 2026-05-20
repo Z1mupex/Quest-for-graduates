@@ -1,5 +1,6 @@
 import { getQuestStorage } from "@/lib/quest-storage";
 import { teamsSnapshotFromState } from "@/lib/quest-storage/split-state";
+import { StaleQuestWriteError } from "@/lib/quest-storage/types";
 import type { ApprovalSubmission, QuestState, TimerState } from "@/lib/quest-types";
 import {
   completeTeamStep,
@@ -74,39 +75,50 @@ export async function mutateQuestState(
   options?: { forceTeamsRevision?: boolean },
 ): Promise<QuestState> {
   const storage = getQuestStorage();
-  const current = await storage.readState();
-  const mutated = mutator(current);
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const current = await storage.readState();
+      const mutated = mutator(current);
 
-  const teamsChanged =
-    JSON.stringify(mutated.teams) !== JSON.stringify(current.teams);
-  const timerChanged =
-    JSON.stringify(mutated.timer) !== JSON.stringify(current.timer);
+      const teamsChanged =
+        JSON.stringify(mutated.teams) !== JSON.stringify(current.teams);
+      const timerChanged =
+        JSON.stringify(mutated.timer) !== JSON.stringify(current.timer);
 
-  if (!teamsChanged && !timerChanged && !options?.forceTeamsRevision) {
-    return current;
+      if (!teamsChanged && !timerChanged && !options?.forceTeamsRevision) {
+        return current;
+      }
+
+      const nextRevision =
+        teamsChanged || options?.forceTeamsRevision
+          ? (current.revision ?? 0) + 1
+          : (current.revision ?? 0);
+
+      const result: QuestState = {
+        ...mutated,
+        revision: nextRevision,
+      };
+
+      if (teamsChanged || options?.forceTeamsRevision) {
+        await storage.writeTeams(teamsSnapshotFromState(result));
+      }
+      if (timerChanged) {
+        await storage.writeTimer(mutated.timer);
+      }
+
+      return {
+        ...result,
+        timer: resolveTimer(result.timer),
+      };
+    } catch (err) {
+      if (err instanceof StaleQuestWriteError && attempt < 4) {
+        continue;
+      }
+      throw err;
+    }
   }
 
-  const nextRevision =
-    teamsChanged || options?.forceTeamsRevision
-      ? (current.revision ?? 0) + 1
-      : (current.revision ?? 0);
-
-  const result: QuestState = {
-    ...mutated,
-    revision: nextRevision,
-  };
-
-  if (teamsChanged || options?.forceTeamsRevision) {
-    await storage.writeTeams(teamsSnapshotFromState(result));
-  }
-  if (timerChanged) {
-    await storage.writeTimer(mutated.timer);
-  }
-
-  return {
-    ...result,
-    timer: resolveTimer(result.timer),
-  };
+  throw new StaleQuestWriteError("Quest state changed too often while saving");
 }
 
 export function didCompleteStep(

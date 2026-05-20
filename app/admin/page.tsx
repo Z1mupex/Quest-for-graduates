@@ -5,6 +5,9 @@ import { TimerControls } from "@/components/TimerControls";
 import { getServerSession } from "@/lib/auth";
 import { readQuestState } from "@/lib/server-quest-store";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function AdminPage() {
   const session = await getServerSession();
   if (!session || session.role !== "admin") {
