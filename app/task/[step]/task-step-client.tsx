@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BureaucracyTask } from "@/components/tasks/BureaucracyTask";
@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getStepById } from "@/lib/data";
 import { TOTAL_QUEST_STEPS } from "@/lib/quest-config";
-import { patchQuest } from "@/lib/quest-api";
+import { patchQuest, QuestApiError } from "@/lib/quest-api";
 import { useQuestStore } from "@/lib/store";
 
 type TaskStepClientProps = {
@@ -31,15 +31,37 @@ export function TaskStepClient({ step, teamId }: TaskStepClientProps) {
   const router = useRouter();
   const hydrated = useQuestStore((s) => s.hydrated);
   const team = useQuestStore((s) => s.teams[teamId]);
+  const [completeError, setCompleteError] = useState<string | null>(null);
 
   const handleComplete = useCallback(async () => {
-    await patchQuest({ action: "completeStep", step });
-    if (step === TOTAL_QUEST_STEPS) {
-      router.replace("/dashboard");
-      return;
+    setCompleteError(null);
+    try {
+      const state = await patchQuest({ action: "completeStep", step });
+      const updated = state.teams[teamId];
+      const saved =
+        updated != null &&
+        (updated.completedSteps.includes(step) || updated.currentStep > step);
+
+      if (!saved) {
+        setCompleteError(
+          "Прогресс не сохранился на сервере. Подождите пару секунд и нажмите снова.",
+        );
+        return;
+      }
+
+      if (step === TOTAL_QUEST_STEPS) {
+        router.replace("/dashboard");
+        return;
+      }
+      router.replace(`/task/${step + 1}`);
+    } catch (e) {
+      setCompleteError(
+        e instanceof QuestApiError
+          ? e.message
+          : "Ошибка при сохранении шага",
+      );
     }
-    router.replace(`/task/${step + 1}`);
-  }, [step, router]);
+  }, [step, teamId, router]);
 
   useEffect(() => {
     if (!hydrated || !team) return;
@@ -142,7 +164,14 @@ export function TaskStepClient({ step, teamId }: TaskStepClientProps) {
   }
 
   const wrap = (node: React.ReactNode) => (
-    <div className="mx-auto max-w-xl px-4 py-10">{node}</div>
+    <div className="mx-auto max-w-xl space-y-3 px-4 py-10">
+      {completeError ? (
+        <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {completeError}
+        </p>
+      ) : null}
+      {node}
+    </div>
   );
 
   switch (stepData.component) {
