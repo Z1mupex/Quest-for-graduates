@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { patchQuest } from "@/lib/quest-api";
 import { useQuestStore } from "@/lib/store";
 
 function formatClock(ms: number) {
@@ -17,10 +18,8 @@ function formatClock(ms: number) {
 
 export function TimerControls() {
   const timer = useQuestStore((s) => s.timer);
-  const startTimer = useQuestStore((s) => s.startTimer);
-  const pauseTimer = useQuestStore((s) => s.pauseTimer);
-  const resetTimer = useQuestStore((s) => s.resetTimer);
   const [soundHint, setSoundHint] = useState(true);
+  const [busy, setBusy] = useState(false);
 
   const statusLabel =
     timer.status === "idle"
@@ -38,6 +37,15 @@ export function TimerControls() {
         ? "destructive"
         : "secondary";
 
+  async function run(action: string) {
+    setBusy(true);
+    try {
+      await patchQuest({ action });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6 rounded-2xl border bg-card p-8 shadow-card">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -48,13 +56,27 @@ export function TimerControls() {
         {formatClock(timer.remainingMs)}
       </div>
       <div className="flex flex-wrap gap-3">
-        <Button type="button" onClick={() => startTimer()}>
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => void run("startTimer")}
+        >
           ▶ Старт
         </Button>
-        <Button type="button" variant="secondary" onClick={() => pauseTimer()}>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={busy}
+          onClick={() => void run("pauseTimer")}
+        >
           ⏸ Пауза
         </Button>
-        <Button type="button" variant="outline" onClick={() => resetTimer()}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy}
+          onClick={() => void run("resetTimer")}
+        >
           ↺ Сброс
         </Button>
       </div>

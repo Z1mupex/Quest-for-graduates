@@ -1,52 +1,53 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BureaucracyTask } from "@/components/tasks/BureaucracyTask";
-import { CompassTask } from "@/components/tasks/CompassTask";
-import { CrocodileTask } from "@/components/tasks/CrocodileTask";
-import { FinalTask } from "@/components/tasks/FinalTask";
-import { GeographyTask } from "@/components/tasks/GeographyTask";
-import { SilentChallengeTask } from "@/components/tasks/SilentChallengeTask";
-import { SocialEngineeringTask } from "@/components/tasks/SocialEngineeringTask";
+import { AIAccusationsTask } from "@/components/tasks/AIAccusationsTask";
+import { BlindfoldRouteTask } from "@/components/tasks/BlindfoldRouteTask";
+import { CrocodileTimerTask } from "@/components/tasks/CrocodileTimerTask";
+import { FreeWalkTask } from "@/components/tasks/FreeWalkTask";
+import { HiddenCodeTask } from "@/components/tasks/HiddenCodeTask";
+import { PortalSearchTask } from "@/components/tasks/PortalSearchTask";
+import { RopeLockTask } from "@/components/tasks/RopeLockTask";
+import { SchoolQuizTask } from "@/components/tasks/SchoolQuizTask";
+import { StopFrameTask } from "@/components/tasks/StopFrameTask";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getStepById } from "@/lib/data";
-import {
-  getQuestPersistHasHydrated,
-  subscribeHydration,
-  useQuestStore,
-} from "@/lib/store";
+import { TOTAL_QUEST_STEPS } from "@/lib/quest-config";
+import { patchQuest } from "@/lib/quest-api";
+import { useQuestStore } from "@/lib/store";
 
 type TaskStepClientProps = {
   step: number;
   teamId: string;
 };
 
+const FINISHED_STEP = TOTAL_QUEST_STEPS + 1;
+
 export function TaskStepClient({ step, teamId }: TaskStepClientProps) {
   const router = useRouter();
-  const [hydrated, setHydrated] = useState(getQuestPersistHasHydrated);
+  const hydrated = useQuestStore((s) => s.hydrated);
   const team = useQuestStore((s) => s.teams[teamId]);
-  const completeStep = useQuestStore((s) => s.completeStep);
 
-  const [doneBanner, setDoneBanner] = useState(false);
-
-  const handleComplete = useCallback(() => {
-    completeStep(teamId, step);
-    if (step !== 9) {
-      setDoneBanner(true);
+  const handleComplete = useCallback(async () => {
+    await patchQuest({ action: "completeStep", step });
+    if (step === TOTAL_QUEST_STEPS) {
+      router.replace("/dashboard");
+      return;
     }
-  }, [completeStep, teamId, step]);
+    router.replace(`/task/${step + 1}`);
+  }, [step, router]);
 
   useEffect(() => {
-    if (hydrated) return;
-    const unsub = subscribeHydration(() => setHydrated(true));
-    if (getQuestPersistHasHydrated()) {
-      setHydrated(true);
+    if (!hydrated || !team) return;
+    if (team.currentStep === FINISHED_STEP) return;
+    if (step < team.currentStep) {
+      router.replace(`/task/${team.currentStep}`);
     }
-    return unsub;
-  }, [hydrated]);
+  }, [hydrated, team, step, router]);
 
   const stepData = useMemo(() => getStepById(step), [step]);
 
@@ -56,7 +57,7 @@ export function TaskStepClient({ step, teamId }: TaskStepClientProps) {
     );
   }
 
-  if (!stepData || Number.isNaN(step) || step < 1 || step > 9) {
+  if (!stepData || Number.isNaN(step) || step < 1 || step > TOTAL_QUEST_STEPS) {
     return (
       <p className="p-10 text-center text-muted-foreground">
         Задание не найдено.
@@ -72,7 +73,7 @@ export function TaskStepClient({ step, teamId }: TaskStepClientProps) {
     );
   }
 
-  if (team.currentStep === 10) {
+  if (team.currentStep === FINISHED_STEP) {
     return (
       <Card className="mx-auto mt-10 max-w-md">
         <CardContent className="space-y-4 p-8 text-center">
@@ -85,7 +86,7 @@ export function TaskStepClient({ step, teamId }: TaskStepClientProps) {
     );
   }
 
-  if (step !== team.currentStep) {
+  if (step > team.currentStep) {
     const target = team.currentStep;
     return (
       <Card className="mx-auto mt-10 max-w-md border-destructive/30">
@@ -95,15 +96,30 @@ export function TaskStepClient({ step, teamId }: TaskStepClientProps) {
           </p>
           <Button
             type="button"
-            onClick={() => {
-              if (target <= 0) {
-                router.push("/dashboard");
-              } else {
-                router.push(`/task/${target}`);
-              }
-            }}
+            onClick={() => router.push(`/task/${target}`)}
           >
             Перейти к моему заданию →
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (step < team.currentStep) {
+    return (
+      <p className="p-10 text-center text-muted-foreground">Переход…</p>
+    );
+  }
+
+  if (team.approvalPendingStep === step) {
+    return (
+      <Card className="mx-auto mt-10 max-w-md">
+        <CardContent className="space-y-4 p-8 text-center">
+          <p className="text-muted-foreground">
+            Ожидайте подтверждения организатора.
+          </p>
+          <Button asChild variant="secondary">
+            <Link href="/dashboard">На панель команды</Link>
           </Button>
         </CardContent>
       </Card>
@@ -114,109 +130,109 @@ export function TaskStepClient({ step, teamId }: TaskStepClientProps) {
     return (
       <Card className="mx-auto mt-10 max-w-md">
         <CardContent className="space-y-4 p-8 text-center">
-          <p className="text-muted-foreground">
-            Задание уже выполнено. Найдите QR-код для следующего шага.
-          </p>
-          <Button asChild variant="secondary">
-            <Link href="/dashboard">На панель команды</Link>
+          <p className="text-muted-foreground">Задание уже выполнено.</p>
+          <Button asChild>
+            <Link href={`/task/${team.currentStep}`}>
+              Задание {team.currentStep} →
+            </Link>
           </Button>
         </CardContent>
       </Card>
     );
   }
 
-  if (doneBanner && step !== 9) {
-    return (
-      <Card className="mx-auto mt-10 max-w-md border-accent/40 shadow-glow">
-        <CardContent className="space-y-4 p-8 text-center text-lg">
-          <p>✅ Задание выполнено! Найдите следующий QR-код, чтобы продолжить.</p>
-          <Button asChild>
-            <Link href="/dashboard">Вернуться на панель</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
+  const wrap = (node: React.ReactNode) => (
+    <div className="mx-auto max-w-xl px-4 py-10">{node}</div>
+  );
 
   switch (stepData.component) {
     case "bureaucracy":
-      return (
-        <div className="mx-auto max-w-xl px-4 py-10">
-          <BureaucracyTask
-            title={stepData.title}
-            description={stepData.description}
-            answer={stepData.answer ?? ""}
-            onComplete={handleComplete}
-          />
-        </div>
+      return wrap(
+        <BureaucracyTask
+          title={stepData.title}
+          description={stepData.description}
+          answer={stepData.answer ?? ""}
+          onComplete={() => void handleComplete()}
+        />,
       );
-    case "silentChallenge":
-      return (
-        <div className="mx-auto max-w-xl px-4 py-10">
-          <SilentChallengeTask
-            title={stepData.title}
-            description={stepData.description}
-            meta={stepData.meta}
-            onComplete={handleComplete}
-          />
-        </div>
+    case "schoolQuiz":
+      return wrap(
+        <SchoolQuizTask
+          title={stepData.title}
+          description={stepData.description}
+          onComplete={() => void handleComplete()}
+        />,
       );
-    case "geography":
-      return (
-        <div className="mx-auto max-w-xl px-4 py-10">
-          <GeographyTask
-            title={stepData.title}
-            description={stepData.description}
-            meta={stepData.meta}
-            onComplete={handleComplete}
-          />
-        </div>
+    case "hiddenCode":
+      return wrap(
+        <HiddenCodeTask
+          title={stepData.title}
+          description={stepData.description}
+          meta={stepData.meta}
+          onComplete={() => void handleComplete()}
+        />,
       );
-    case "socialEngineering":
-      return (
-        <div className="mx-auto max-w-xl px-4 py-10">
-          <SocialEngineeringTask
-            title={stepData.title}
-            description={stepData.description}
-            meta={stepData.meta}
-            teamId={teamId}
-            onComplete={handleComplete}
-          />
-        </div>
+    case "portalSearch":
+      return wrap(
+        <PortalSearchTask
+          title={stepData.title}
+          description={stepData.description}
+          meta={stepData.meta}
+          onComplete={() => void handleComplete()}
+        />,
       );
-    case "compass":
-      return (
-        <div className="mx-auto max-w-xl px-4 py-10">
-          <CompassTask
-            title={stepData.title}
-            description={stepData.description}
-            meta={stepData.meta}
-            onComplete={handleComplete}
-          />
-        </div>
+    case "stopFrame":
+      return wrap(
+        <StopFrameTask
+          title={stepData.title}
+          description={stepData.description}
+          teamId={teamId}
+          step={step}
+        />,
       );
-    case "crocodile":
-      return (
-        <div className="mx-auto max-w-xl px-4 py-10">
-          <CrocodileTask
-            title={stepData.title}
-            description={stepData.description}
-            meta={stepData.meta}
-            onComplete={handleComplete}
-          />
-        </div>
+    case "crocodileTimer":
+      return wrap(
+        <CrocodileTimerTask
+          title={stepData.title}
+          description={stepData.description}
+          onComplete={() => void handleComplete()}
+        />,
       );
-    case "final":
-      return (
-        <div className="mx-auto max-w-xl px-4 py-10">
-          <FinalTask
-            title={stepData.title}
-            description={stepData.description}
-            meta={stepData.meta}
-            teamId={teamId}
-            onComplete={handleComplete}
-          />
-        </div>
+    case "freeWalk":
+      return wrap(
+        <FreeWalkTask
+          title={stepData.title}
+          description={stepData.description}
+          meta={stepData.meta}
+          onComplete={() => void handleComplete()}
+        />,
+      );
+    case "blindfoldRoute":
+      return wrap(
+        <BlindfoldRouteTask
+          title={stepData.title}
+          description={stepData.description}
+          meta={stepData.meta}
+          onComplete={() => void handleComplete()}
+        />,
+      );
+    case "ropeLock":
+      return wrap(
+        <RopeLockTask
+          title={stepData.title}
+          description={stepData.description}
+          meta={stepData.meta}
+          onComplete={() => void handleComplete()}
+        />,
+      );
+    case "aiAccusations":
+      return wrap(
+        <AIAccusationsTask
+          title={stepData.title}
+          description={stepData.description}
+          teamId={teamId}
+          step={step}
+        />,
       );
     default:
       return (

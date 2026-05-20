@@ -13,7 +13,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { SessionPayload } from "@/lib/auth";
+import { TOTAL_QUEST_STEPS } from "@/lib/quest-config";
 import { useQuestStore } from "@/lib/store";
+
+const FINISHED_STEP = TOTAL_QUEST_STEPS + 1;
 
 function formatDuration(ms: number) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -37,14 +40,14 @@ export function Header({ session, displayName }: HeaderProps) {
 
   const progressValue = useMemo(() => {
     if (!teamState) return 0;
-    return Math.min(100, (teamState.completedSteps.length / 9) * 100);
+    return Math.min(100, (teamState.completedSteps.length / TOTAL_QUEST_STEPS) * 100);
   }, [teamState]);
 
   const stepLabel = useMemo(() => {
     if (!teamState) return "";
     if (teamState.currentStep === 0) return "Подготовка";
-    if (teamState.currentStep >= 10) return "Финиш";
-    return `Шаг ${teamState.currentStep} / 9`;
+    if (teamState.currentStep >= FINISHED_STEP) return "Финиш";
+    return `Шаг ${teamState.currentStep} / ${TOTAL_QUEST_STEPS}`;
   }, [teamState]);
 
   const urgent = timer.status === "running" && timer.remainingMs <= 5 * 60 * 1000;

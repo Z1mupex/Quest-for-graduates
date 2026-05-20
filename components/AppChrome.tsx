@@ -2,6 +2,7 @@
 
 import { Header } from "@/components/Header";
 import { GlobalTimerOverlay } from "@/components/GlobalTimerOverlay";
+import { QuestSync } from "@/components/QuestSync";
 import { TimerTicker } from "@/components/TimerTicker";
 import type { SessionPayload } from "@/lib/auth";
 import { getUserById } from "@/lib/data";
@@ -18,7 +19,8 @@ export function AppChrome({ session, children }: AppChromeProps) {
 
   return (
     <>
-      <TimerTicker />
+      <QuestSync enabled={session != null} />
+      <TimerTicker isAdmin={session?.role === "admin"} />
       <GlobalTimerOverlay session={session} />
       <Header session={session} displayName={displayName} />
       <main className="flex-1">{children}</main>

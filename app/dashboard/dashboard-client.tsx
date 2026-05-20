@@ -1,44 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { QrCode } from "lucide-react";
 import Link from "next/link";
 import { ProgressDots } from "@/components/ProgressDots";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getPhaseLabelForStep, getUserById } from "@/lib/data";
-import {
-  getQuestPersistHasHydrated,
-  subscribeHydration,
-  useQuestStore,
-} from "@/lib/store";
+import { TOTAL_QUEST_STEPS } from "@/lib/quest-config";
+import { useQuestStore } from "@/lib/store";
+
+const FINISHED_STEP = TOTAL_QUEST_STEPS + 1;
 
 type DashboardClientProps = {
   teamId: string;
 };
 
 function phaseBadge(currentStep: number) {
-  if (currentStep === 0) return "БЮРОКРАТИЯ";
-  if (currentStep >= 10) return "ФИНИШ";
-  return getPhaseLabelForStep(Math.min(currentStep, 9));
+  if (currentStep >= FINISHED_STEP) return "ФИНИШ";
+  return getPhaseLabelForStep(Math.min(currentStep, TOTAL_QUEST_STEPS));
 }
 
 export function DashboardClient({ teamId }: DashboardClientProps) {
   const router = useRouter();
-  const [hydrated, setHydrated] = useState(getQuestPersistHasHydrated);
+  const hydrated = useQuestStore((s) => s.hydrated);
   const team = useQuestStore((s) => s.teams[teamId]);
   const user = getUserById(teamId);
-
-  useEffect(() => {
-    if (hydrated) return;
-    const unsub = subscribeHydration(() => setHydrated(true));
-    if (getQuestPersistHasHydrated()) {
-      setHydrated(true);
-    }
-    return unsub;
-  }, [hydrated]);
 
   if (!hydrated || !team) {
     return (
@@ -50,16 +37,15 @@ export function DashboardClient({ teamId }: DashboardClientProps) {
 
   const activeTask =
     team.currentStep > 0 &&
-    team.currentStep <= 9 &&
-    !team.completedSteps.includes(team.currentStep);
+    team.currentStep <= TOTAL_QUEST_STEPS &&
+    !team.completedSteps.includes(team.currentStep) &&
+    team.approvalPendingStep !== team.currentStep;
 
-  const waitingQr =
-    team.currentStep === 0 ||
-    (team.currentStep > 0 &&
-      team.currentStep < 9 &&
-      team.completedSteps.includes(team.currentStep));
+  const waitingApproval =
+    team.approvalPendingStep != null &&
+    team.approvalPendingStep === team.currentStep;
 
-  const finished = team.currentStep === 10;
+  const finished = team.currentStep === FINISHED_STEP;
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-10">
@@ -91,6 +77,17 @@ export function DashboardClient({ teamId }: DashboardClientProps) {
         </Card>
       ) : null}
 
+      {!finished && waitingApproval ? (
+        <Card>
+          <CardContent className="space-y-3 p-8 text-center">
+            <p className="text-muted-foreground">
+              Задание {team.approvalPendingStep} отправлено на проверку.
+              Ожидайте подтверждения организатора.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {!finished && activeTask ? (
         <Card className="border-accent/40 shadow-glow">
           <CardContent className="flex flex-col gap-4 p-8 sm:flex-row sm:items-center sm:justify-between">
@@ -105,17 +102,6 @@ export function DashboardClient({ teamId }: DashboardClientProps) {
                 Продолжить задание →
               </Link>
             </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {!finished && waitingQr && !activeTask ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-4 p-10 text-center">
-            <QrCode className="h-12 w-12 text-accent" aria-hidden />
-            <p className="max-w-md text-muted-foreground">
-              Отсканируйте QR-код, чтобы разблокировать следующий шаг
-            </p>
           </CardContent>
         </Card>
       ) : null}

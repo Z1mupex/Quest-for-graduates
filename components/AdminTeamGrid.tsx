@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,30 +12,60 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { AdminApprovalDialog } from "@/components/AdminApprovalDialog";
 import { USERS } from "@/lib/data";
+import { fetchSubmission, patchQuest } from "@/lib/quest-api";
+import { TOTAL_QUEST_STEPS } from "@/lib/quest-config";
+import type { ApprovalSubmission } from "@/lib/quest-types";
 import { useQuestStore } from "@/lib/store";
-import { useState } from "react";
 
 export function AdminTeamGrid() {
   const teams = useQuestStore((s) => s.teams);
-  const resetTeam = useQuestStore((s) => s.resetTeam);
-  const resetAllTeams = useQuestStore((s) => s.resetAllTeams);
-  const clearPenalty = useQuestStore((s) => s.clearPenalty);
   const [confirmTeamId, setConfirmTeamId] = useState<string | null>(null);
   const [confirmAllOpen, setConfirmAllOpen] = useState(false);
+  const [reviewTeamId, setReviewTeamId] = useState<string | null>(null);
+  const [submission, setSubmission] = useState<ApprovalSubmission | null>(null);
+  const [loadingSubmission, setLoadingSubmission] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const teamUsers = USERS.filter((u) => u.role === "team");
+
+  const reviewTeam = reviewTeamId
+    ? teamUsers.find((u) => u.id === reviewTeamId)
+    : undefined;
+  const reviewState = reviewTeamId ? teams[reviewTeamId] : undefined;
 
   const activeTeam =
     confirmTeamId != null
       ? teamUsers.find((u) => u.id === confirmTeamId)
       : undefined;
 
+  useEffect(() => {
+    if (!reviewTeamId) {
+      setSubmission(null);
+      return;
+    }
+    setLoadingSubmission(true);
+    void fetchSubmission(reviewTeamId)
+      .then(setSubmission)
+      .catch(() => setSubmission(null))
+      .finally(() => setLoadingSubmission(false));
+  }, [reviewTeamId]);
+
   function phaseForStep(step: number) {
     if (step === 0) return "Ожидание";
     if (step >= 1 && step <= 3) return "Бюрократия";
-    if (step >= 4 && step <= 8) return "Загадки";
+    if (step >= 4 && step <= 11) return "Загадки";
     return "Финал";
+  }
+
+  async function runPatch(body: Record<string, unknown>) {
+    setBusy(true);
+    try {
+      await patchQuest(body);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -48,6 +79,7 @@ export function AdminTeamGrid() {
               <th className="px-4 py-3 font-medium">Фаза</th>
               <th className="px-4 py-3 font-medium">Прогресс</th>
               <th className="px-4 py-3 font-medium">Штраф</th>
+              <th className="px-4 py-3 font-medium">Проверка</th>
               <th className="px-4 py-3 font-medium">Сбросить</th>
             </tr>
           </thead>
@@ -57,8 +89,9 @@ export function AdminTeamGrid() {
               const step = state?.currentStep ?? 0;
               const completed = state?.completedSteps.length ?? 0;
               const penalty = state?.penaltyActive ?? false;
+              const pending = state?.approvalPendingStep;
               const rowTint =
-                step >= 7
+                step >= 9
                   ? "bg-accent/5"
                   : step === 0
                     ? "bg-amber-500/5"
@@ -75,12 +108,12 @@ export function AdminTeamGrid() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    {Math.min(step, 9)} / 9
+                    {Math.min(step, TOTAL_QUEST_STEPS)} / {TOTAL_QUEST_STEPS}
                   </td>
                   <td className="px-4 py-3">{phaseForStep(step)}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1">
-                      <Progress value={(completed / 9) * 100} />
+                      <Progress value={(completed / TOTAL_QUEST_STEPS) * 100} />
                       <span className="text-xs text-muted-foreground">
                         Выполнено: {completed}
                       </span>
@@ -91,9 +124,28 @@ export function AdminTeamGrid() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => clearPenalty(user.id)}
+                        disabled={busy}
+                        onClick={() =>
+                          void runPatch({
+                            action: "clearPenalty",
+                            teamId: user.id,
+                          })
+                        }
                       >
                         Снять штраф
+                      </Button>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {pending ? (
+                      <Button
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => setReviewTeamId(user.id)}
+                      >
+                        Смотреть и подтвердить
                       </Button>
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -103,6 +155,7 @@ export function AdminTeamGrid() {
                     <Button
                       size="sm"
                       variant="secondary"
+                      disabled={busy}
                       onClick={() => setConfirmTeamId(user.id)}
                     >
                       Сбросить
@@ -115,7 +168,12 @@ export function AdminTeamGrid() {
         </table>
       </div>
 
-      <Button type="button" variant="destructive" onClick={() => setConfirmAllOpen(true)}>
+      <Button
+        type="button"
+        variant="destructive"
+        disabled={busy}
+        onClick={() => setConfirmAllOpen(true)}
+      >
         Сбросить все команды
       </Button>
 
@@ -134,15 +192,24 @@ export function AdminTeamGrid() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="secondary" onClick={() => setConfirmTeamId(null)}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setConfirmTeamId(null)}
+            >
               Отмена
             </Button>
             <Button
               type="button"
               variant="destructive"
+              disabled={busy}
               onClick={() => {
-                if (confirmTeamId) resetTeam(confirmTeamId);
-                setConfirmTeamId(null);
+                if (confirmTeamId) {
+                  void runPatch({
+                    action: "resetTeam",
+                    teamId: confirmTeamId,
+                  }).then(() => setConfirmTeamId(null));
+                }
               }}
             >
               Сбросить
@@ -150,6 +217,25 @@ export function AdminTeamGrid() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AdminApprovalDialog
+        teamName={reviewTeam?.name ?? ""}
+        step={reviewState?.approvalPendingStep ?? 0}
+        submission={submission ?? undefined}
+        loading={loadingSubmission}
+        open={reviewTeamId != null}
+        onOpenChange={(open) => {
+          if (!open) setReviewTeamId(null);
+        }}
+        onApprove={() => {
+          if (reviewTeamId) {
+            void runPatch({
+              action: "approvePending",
+              teamId: reviewTeamId,
+            }).then(() => setReviewTeamId(null));
+          }
+        }}
+      />
 
       <Dialog open={confirmAllOpen} onOpenChange={setConfirmAllOpen}>
         <DialogContent aria-describedby="reset-all-desc">
@@ -160,15 +246,21 @@ export function AdminTeamGrid() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="secondary" onClick={() => setConfirmAllOpen(false)}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setConfirmAllOpen(false)}
+            >
               Отмена
             </Button>
             <Button
               type="button"
               variant="destructive"
+              disabled={busy}
               onClick={() => {
-                resetAllTeams();
-                setConfirmAllOpen(false);
+                void runPatch({ action: "resetAllTeams" }).then(() =>
+                  setConfirmAllOpen(false),
+                );
               }}
             >
               Сбросить все

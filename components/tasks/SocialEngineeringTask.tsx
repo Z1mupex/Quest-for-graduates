@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TaskCard } from "@/components/TaskCard";
+import { patchQuest } from "@/lib/quest-api";
 import { useQuestStore } from "@/lib/store";
 
 type SocialEngineeringTaskProps = {
@@ -26,7 +27,6 @@ export function SocialEngineeringTask({
   const penaltyActive = useQuestStore(
     (s) => s.teams[teamId]?.penaltyActive ?? false,
   );
-  const triggerPenalty = useQuestStore((s) => s.triggerPenalty);
 
   const [value, setValue] = useState("");
   const [attempts, setAttempts] = useState(0);
@@ -60,7 +60,7 @@ export function SocialEngineeringTask({
     setError(true);
     if (next >= maxAttempts) {
       setPenaltyTriggered(true);
-      triggerPenalty(teamId);
+      void patchQuest({ action: "triggerPenalty", teamId });
     }
   }
 

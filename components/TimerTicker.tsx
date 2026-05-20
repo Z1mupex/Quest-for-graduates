@@ -1,19 +1,27 @@
 "use client";
 
 import { useEffect } from "react";
+import { patchQuest } from "@/lib/quest-api";
 import { useQuestStore } from "@/lib/store";
 
-export function TimerTicker() {
-  const tickTimer = useQuestStore((s) => s.tickTimer);
+type TimerTickerProps = {
+  isAdmin: boolean;
+};
+
+export function TimerTicker({ isAdmin }: TimerTickerProps) {
+  const tickTimerLocal = useQuestStore((s) => s.tickTimerLocal);
   const status = useQuestStore((s) => s.timer.status);
 
   useEffect(() => {
     if (status !== "running") return;
     const id = window.setInterval(() => {
-      tickTimer();
+      tickTimerLocal();
+      if (isAdmin) {
+        void patchQuest({ action: "tickTimer" }).catch(() => {});
+      }
     }, 1000);
     return () => window.clearInterval(id);
-  }, [status, tickTimer]);
+  }, [status, tickTimerLocal, isAdmin]);
 
   return null;
 }

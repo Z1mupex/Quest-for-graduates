@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { TOTAL_QUEST_STEPS } from "@/lib/quest-config";
 
 type ProgressDotsProps = {
   currentStep: number;
@@ -10,7 +11,7 @@ type ProgressDotsProps = {
 export function ProgressDots({ currentStep, completedSteps }: ProgressDotsProps) {
   return (
     <div className="flex flex-wrap items-center justify-center gap-2">
-      {Array.from({ length: 9 }, (_, i) => {
+      {Array.from({ length: TOTAL_QUEST_STEPS }, (_, i) => {
         const step = i + 1;
         const done = completedSteps.includes(step);
         const active = currentStep === step && !done;

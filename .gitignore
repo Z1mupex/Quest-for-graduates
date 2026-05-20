@@ -30,7 +30,6 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
 .env*
 
 # vercel
@@ -39,3 +38,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# quest runtime data (submissions with photos)
+/data/quest-state.json
+/data/submissions/
+
+node_modules/

@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# КВЕСТ 2026 🎓
 
-## Getting Started
+Выпускной квест для 11-х классов. Соревнование между командами по школе с заданиями, QR-кодами и единым сайтом для отслеживания прогресса.
 
-First, run the development server:
+## Суть
+
+7 команд (~6 человек) одновременно проходят 12 заданий по школе. Каждое задание разблокируется через QR-код. Команды идут по смещённым веткам, чтобы не пересекаться. Побеждает команда, прошедшая все задания быстрее остальных.
+
+**Общее время:** ~2.5–3 часа  
+
+---
+
+## Задания
+
+| #   | Название            | Механика                                                              |
+| --- | ------------------- | --------------------------------------------------------------------- |
+| 1–3 | Учителя             | Найти учителя → получить задание → ввести кодовое слово               |
+| 4   | Школьная викторина  | 12 вопросов с последовательной разблокировкой, штраф 60 сек за ошибку |
+| 5   | Шифр в пространстве | Найти спрятанные конверты с буквами по всей школе                     |
+| 6   | Портал школы        | Найти 2 слова на официальном сайте school7.edu.kz                     |
+| 7   | Стоп-кадр           | Инсценировать и сфотографировать 6 сцен, подтверждает организатор     |
+| 8   | Крокодил            | Показать 3 фразы жестами, таймер 3 мин на каждую                      |
+| 9   | Прогулка            | 10-минутный таймер, пройти мимо чекпоинтов по школе                   |
+| 10  | Маршрут вслепую     | Пошаговые инструкции, один участник идёт с завязанными глазами        |
+| 11  | Кодовый замок       | Разгадать загадки → получить код → открыть ящик в кабинете №20        |
+| 12  | ИИ-обвинения        | Опровергнуть 5 обвинений класса с фото-доказательствами               |
+
+
+---
+
+## Стек
+
+- **Frontend + Backend:** Next.js
+
+---
+
+## Запуск
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Открыть [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Роли на сайте
 
-## Learn More
+- **Команда** — логин по названию команды и паролю, проходит задания
+- **Администратор** — видит прогресс всех команд, управляет таймером, подтверждает фото-задания (7 и 12)
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Структура проекта
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+/
+├── app/                  # Next.js App Router
+│   ├── page.tsx          # Страница логина
+│   ├── admin/            # Панель администратора
+│   └── task/[id]/        # Страницы заданий
+├── components/           # UI-компоненты
+├── lib/                  # Логика, данные заданий, утилиты
+└── public/               # Статика
+```
 
-## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## СОДЕРЖИТ КОНТЕНТ СГЕНЕРИРОВАННЫЙ ИИ

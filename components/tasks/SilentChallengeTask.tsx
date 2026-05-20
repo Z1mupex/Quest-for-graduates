@@ -32,7 +32,7 @@ export function SilentChallengeTask({
   const intervalRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
-  const dataRef = useRef<Uint8Array | null>(null);
+  const dataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
 
   const cleanupAudio = useCallback(() => {

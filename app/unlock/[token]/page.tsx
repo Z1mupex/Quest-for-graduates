@@ -1,9 +1,5 @@
-import { UnlockClient } from "./unlock-client";
+import { redirect } from "next/navigation";
 
-type PageProps = {
-  params: { token: string };
-};
-
-export default function UnlockPage({ params }: PageProps) {
-  return <UnlockClient token={params.token} />;
+export default function UnlockPage() {
+  redirect("/dashboard");
 }
